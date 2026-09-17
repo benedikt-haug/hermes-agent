@@ -104,6 +104,16 @@ def _ram_bytes() -> tuple[int, int]:
         avail = total // 2  # conservative when _AVPHYS is unavailable
         with suppress(OSError, ValueError):
             avail = int(_stdout("getconf", "_AVPHYS_PAGES") or 0) * page or avail
+        # _AVPHYS_PAGES ignores reclaimable page cache; MemAvailable is the kernel's
+        # own estimate and prevents a warm-cache box from reading as ~96% full.
+        with suppress(OSError, ValueError):
+            m = re.search(
+                r"^MemAvailable:\s+(\d+)\s+kB",
+                Path("/proc/meminfo").read_text(encoding="utf-8"),
+                re.MULTILINE,
+            )
+            if m and int(m.group(1)) > 0:
+                avail = int(m.group(1)) * 1024
         return total, avail
     except (OSError, ValueError):
         return 0, 0
